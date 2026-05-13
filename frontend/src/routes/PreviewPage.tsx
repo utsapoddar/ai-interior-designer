@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { getCatalog, getPlan, type CatalogItem, type PlanResponse } from '../lib/api';
+import { getCatalog, getPlan, getPlanImages, type CatalogItem, type PlanImage, type PlanResponse } from '../lib/api';
 import RoomPreviewScene from '../three/RoomPreviewScene';
 
 export default function PreviewPage() {
@@ -47,9 +47,7 @@ export default function PreviewPage() {
       <p className="eyebrow">Step 3 · plan {planId || 'missing'}</p>
       <h1>Box-proxy preview</h1>
       <div className="preview-layout">
-        <div className="canvas-frame">
-          <RoomPreviewScene planId={planId} />
-        </div>
+        <RoomCarousel planId={planId} />
         <aside className="preview-sidebar">
           <h2>Rationale</h2>
           <p className="muted">{plan?.rationale ?? <span>Loading plan<span className="loading-dots" /></span>}</p>
@@ -100,5 +98,67 @@ export default function PreviewPage() {
         </aside>
       </div>
     </section>
+  );
+}
+
+function RoomCarousel({ planId }: { planId: string }) {
+  const [images, setImages] = useState<PlanImage[]>([]);
+  const [slideIndex, setSlideIndex] = useState(0);
+  const [isGenerating, setIsGenerating] = useState(true);
+  const slideCount = 1 + images.length;
+
+  useEffect(() => {
+    if (!planId) return;
+    let cancelled = false;
+    let interval: number | undefined;
+    const startedAt = Date.now();
+
+    const poll = async () => {
+      const nextImages = await getPlanImages(planId).catch(() => []);
+      if (cancelled) return;
+      setImages(nextImages);
+      const timedOut = Date.now() - startedAt >= 60_000;
+      setIsGenerating(nextImages.length < 3 && !timedOut);
+      if ((nextImages.length >= 3 || timedOut) && interval !== undefined) {
+        window.clearInterval(interval);
+      }
+    };
+
+    poll();
+    interval = window.setInterval(poll, 3000);
+
+    return () => {
+      cancelled = true;
+      if (interval !== undefined) window.clearInterval(interval);
+    };
+  }, [planId]);
+
+  useEffect(() => {
+    setSlideIndex((current) => Math.min(current, slideCount - 1));
+  }, [slideCount]);
+
+  return (
+    <div className="carousel-wrap">
+      <div className="carousel-counter">
+        {slideIndex + 1} / 4{isGenerating ? ' (generating images…)' : ''}
+      </div>
+      <div className="carousel-track" style={{ transform: `translateX(-${slideIndex * 100}%)` }}>
+        <div className="carousel-slide">
+          <RoomPreviewScene planId={planId} />
+        </div>
+        {images.map((image) => (
+          <div className="carousel-slide" key={image.index}>
+            <img src={image.url} alt="" />
+          </div>
+        ))}
+      </div>
+      <button className="carousel-arrow carousel-arrow-left" onClick={() => setSlideIndex((index) => index - 1)} disabled={slideIndex === 0} aria-label="Previous slide">‹</button>
+      <button className="carousel-arrow carousel-arrow-right" onClick={() => setSlideIndex((index) => index + 1)} disabled={slideIndex >= slideCount - 1} aria-label="Next slide">›</button>
+      <div className="carousel-dots">
+        {Array.from({ length: slideCount }).map((_, index) => (
+          <button key={index} className={index === slideIndex ? 'active' : ''} onClick={() => setSlideIndex(index)} aria-label={`Go to slide ${index + 1}`} />
+        ))}
+      </div>
+    </div>
   );
 }

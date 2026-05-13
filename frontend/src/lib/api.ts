@@ -148,3 +148,17 @@ export async function getCatalog(): Promise<CatalogItem[]> {
   const response = await request<{ items: CatalogItem[] }>('/catalog');
   return response.items;
 }
+
+
+export type PlanImage = {
+  index: number;
+  url: string;
+  prompt: string;
+};
+
+export async function getPlanImages(planId: string): Promise<PlanImage[]> {
+  const response = await fetch(`${apiBase}/plans/${planId}/images`);
+  if (!response.ok) return [];
+  const data = await response.json();
+  return data.images ?? [];
+}

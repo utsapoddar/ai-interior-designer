@@ -7,11 +7,12 @@ from collections.abc import Callable
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from chat.routes.catalog import load_seed_catalog
 from llm import orchestrator
+from llm.image_gen import generate_room_images
 from llm.verify import verify_urls
 from solver.layout import build_exclusion_zones, place_furniture, validate_and_repair
 
@@ -44,7 +45,9 @@ async def create_plan(
 ) -> PlanResponse:
     _assert_parsed_mesh_exists(scan_id)
     reference_images = await _read_reference_images(references)
-    return await asyncio.to_thread(_build_plan, scan_id, prompt, reference_images, _noop_emit)
+    plan = await asyncio.to_thread(_build_plan, scan_id, prompt, reference_images, _noop_emit)
+    _schedule_plan_images(plan.model_dump(), _load_parsed_mesh(scan_id))
+    return plan
 
 
 @router.post("/stream")
@@ -67,6 +70,8 @@ async def create_plan_stream(
     def run_pipeline() -> None:
         try:
             plan = _build_plan(scan_id, prompt, reference_images, emit)
+            parsed_mesh = _load_parsed_mesh(scan_id)
+            loop.call_soon_threadsafe(_schedule_plan_images, plan.model_dump(), parsed_mesh)
             enqueue("done", {"plan_id": plan.plan_id})
         except Exception as exc:
             enqueue("error", {"message": _error_message(exc)})
@@ -102,7 +107,7 @@ def _build_plan(
     if not parsed_path.exists():
         raise HTTPException(status_code=404, detail="Parsed mesh not found")
 
-    parsed_mesh = json.loads(parsed_path.read_text(encoding="utf-8"))
+    parsed_mesh = _load_parsed_mesh(scan_id)
     catalog = load_seed_catalog()
     exclusion_zones = build_exclusion_zones(parsed_mesh)
 
@@ -162,6 +167,50 @@ def _build_plan(
     PLANS_DIR.mkdir(parents=True, exist_ok=True)
     (PLANS_DIR / f"{plan_id}.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return PlanResponse(**payload)
+
+
+def _load_parsed_mesh(scan_id: str) -> dict:
+    return json.loads((PARSED_MESH_DIR / f"{scan_id}.json").read_text(encoding="utf-8"))
+
+
+def _schedule_plan_images(plan: dict, parsed_mesh: dict) -> None:
+    task = asyncio.create_task(_write_plan_images(plan, parsed_mesh))
+    task.add_done_callback(_log_background_exception)
+
+
+def _log_background_exception(task: asyncio.Task) -> None:
+    try:
+        task.result()
+    except asyncio.CancelledError:
+        pass
+    except Exception as exc:
+        print(f"Plan image generation failed: {exc}")
+
+
+async def _write_plan_images(plan: dict, parsed_mesh: dict) -> None:
+    plan_id = str(plan["plan_id"])
+    image_dir = PLANS_DIR / plan_id
+    image_dir.mkdir(parents=True, exist_ok=True)
+    images: list[dict] = []
+    metadata_path = image_dir / "images.json"
+
+    async for image_bytes in generate_room_images(plan, parsed_mesh, count=3):
+        index = len(images)
+        filename = f"img_{index}.png"
+        (image_dir / filename).write_bytes(bytes(image_bytes))
+        images.append({"index": index, "filename": filename, "prompt": getattr(image_bytes, "prompt", "")})
+        metadata_path.write_text(json.dumps(images, indent=2), encoding="utf-8")
+
+
+def _read_plan_image_metadata(plan_id: str) -> list[dict]:
+    metadata_path = PLANS_DIR / plan_id / "images.json"
+    if not metadata_path.exists():
+        return []
+    try:
+        data = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return []
+    return data if isinstance(data, list) else []
 
 
 def _assert_parsed_mesh_exists(scan_id: str) -> None:
@@ -372,6 +421,36 @@ def _resize_and_encode_jpeg(raw: bytes) -> bytes:
         return output.getvalue()
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Invalid reference image") from exc
+
+
+@router.get("/{plan_id}/images")
+def get_plan_images(plan_id: str) -> JSONResponse:
+    images = []
+    for item in _read_plan_image_metadata(plan_id):
+        try:
+            index = int(item.get("index"))
+        except (TypeError, ValueError):
+            continue
+        images.append(
+            {
+                "index": index,
+                "url": f"/plans/{plan_id}/images/{index}",
+                "prompt": str(item.get("prompt") or ""),
+            }
+        )
+    return JSONResponse({"images": images})
+
+
+@router.get("/{plan_id}/images/{index}")
+def get_plan_image(plan_id: str, index: int) -> FileResponse:
+    image_path = PLANS_DIR / plan_id / f"img_{index}.png"
+    if index < 0 or not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(
+        image_path,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @router.get("/{plan_id}")
