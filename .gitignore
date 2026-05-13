@@ -1,0 +1,13 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+ingest/usdz/*.usdz
+ingest/parsed-mesh/*.json
+chat/plans/*.json
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+frontend/vite.config.d.ts
+frontend/vite.config.js

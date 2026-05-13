@@ -1,0 +1,213 @@
+[
+  {
+    "id": "queen-platform-bed",
+    "name": "Queen Platform Bed",
+    "category": "bed",
+    "dimensions_m": {
+      "width": 1.6,
+      "depth": 2.12,
+      "height": 0.9
+    },
+    "style_tags": ["minimalist", "scandinavian"],
+    "color_tags": ["natural-oak", "off-white"],
+    "approx_price_usd": 650,
+    "placement_hints": ["against-wall", "needs-clearance-sides", "anchor-piece"],
+    "product_url": "https://www.ikea.com/us/en/cat/bed-frames-25759/"
+  },
+  {
+    "id": "twin-frame-bed",
+    "name": "Twin Frame Bed",
+    "category": "bed",
+    "dimensions_m": {
+      "width": 1.02,
+      "depth": 2.02,
+      "height": 0.85
+    },
+    "style_tags": ["minimalist", "modern"],
+    "color_tags": ["matte-black", "off-white"],
+    "approx_price_usd": 360,
+    "placement_hints": ["against-wall", "corner-friendly", "needs-clearance-side"]
+  },
+  {
+    "id": "warm-wood-nightstand",
+    "name": "Warm Wood Nightstand",
+    "category": "storage",
+    "dimensions_m": {
+      "width": 0.48,
+      "depth": 0.4,
+      "height": 0.58
+    },
+    "style_tags": ["warm-wood", "scandinavian"],
+    "color_tags": ["walnut", "brass"],
+    "approx_price_usd": 180,
+    "placement_hints": ["beside-bed", "against-wall", "reachable-from-bed"]
+  },
+  {
+    "id": "black-metal-nightstand",
+    "name": "Black Metal Nightstand",
+    "category": "storage",
+    "dimensions_m": {
+      "width": 0.45,
+      "depth": 0.38,
+      "height": 0.55
+    },
+    "style_tags": ["industrial", "modern"],
+    "color_tags": ["matte-black", "dark-metal"],
+    "approx_price_usd": 140,
+    "placement_hints": ["beside-bed", "against-wall", "reachable-from-bed"]
+  },
+  {
+    "id": "six-drawer-dresser",
+    "name": "6-Drawer Dresser",
+    "category": "storage",
+    "dimensions_m": {
+      "width": 1.5,
+      "depth": 0.48,
+      "height": 0.82
+    },
+    "style_tags": ["modern", "minimalist"],
+    "color_tags": ["white", "natural-oak"],
+    "approx_price_usd": 520,
+    "placement_hints": ["against-wall", "needs-clearance-front", "near-closet"]
+  },
+  {
+    "id": "three-drawer-dresser",
+    "name": "3-Drawer Dresser",
+    "category": "storage",
+    "dimensions_m": {
+      "width": 0.82,
+      "depth": 0.46,
+      "height": 0.78
+    },
+    "style_tags": ["transitional", "warm-wood"],
+    "color_tags": ["walnut", "brass"],
+    "approx_price_usd": 340,
+    "placement_hints": ["against-wall", "needs-clearance-front", "small-room-friendly"]
+  },
+  {
+    "id": "compact-writing-desk",
+    "name": "Compact Writing Desk",
+    "category": "surface",
+    "dimensions_m": {
+      "width": 1.2,
+      "depth": 0.6,
+      "height": 0.75
+    },
+    "style_tags": ["minimalist", "modern"],
+    "color_tags": ["white", "natural-oak"],
+    "approx_price_usd": 260,
+    "placement_hints": ["against-wall", "near-window", "needs-chair-clearance"]
+  },
+  {
+    "id": "upholstered-desk-chair",
+    "name": "Upholstered Desk Chair",
+    "category": "seating",
+    "dimensions_m": {
+      "width": 0.55,
+      "depth": 0.58,
+      "height": 0.86
+    },
+    "style_tags": ["modern", "minimalist"],
+    "color_tags": ["charcoal", "matte-black"],
+    "approx_price_usd": 160,
+    "placement_hints": ["at-desk", "needs-clearance-back", "movable"]
+  },
+  {
+    "id": "boucle-lounge-chair",
+    "name": "Boucle Lounge Chair",
+    "category": "seating",
+    "dimensions_m": {
+      "width": 0.78,
+      "depth": 0.82,
+      "height": 0.78
+    },
+    "style_tags": ["modern", "scandinavian"],
+    "color_tags": ["cream", "light-wood"],
+    "approx_price_usd": 420,
+    "placement_hints": ["near-window", "reading-corner", "needs-clearance-front"]
+  },
+  {
+    "id": "arc-floor-lamp",
+    "name": "Arc Floor Lamp",
+    "category": "lighting",
+    "dimensions_m": {
+      "width": 0.35,
+      "depth": 0.55,
+      "height": 1.65
+    },
+    "style_tags": ["modern", "industrial"],
+    "color_tags": ["matte-black", "brass"],
+    "approx_price_usd": 190,
+    "placement_hints": ["beside-chair", "near-outlet", "corner-friendly"]
+  },
+  {
+    "id": "ceramic-table-lamp",
+    "name": "Ceramic Table Lamp",
+    "category": "lighting",
+    "dimensions_m": {
+      "width": 0.28,
+      "depth": 0.28,
+      "height": 0.48
+    },
+    "style_tags": ["transitional", "minimalist"],
+    "color_tags": ["off-white", "brass"],
+    "approx_price_usd": 95,
+    "placement_hints": ["on-nightstand", "on-dresser", "near-outlet"]
+  },
+  {
+    "id": "small-wool-area-rug",
+    "name": "Small Wool Area Rug",
+    "category": "textile",
+    "dimensions_m": {
+      "width": 1.52,
+      "depth": 2.13,
+      "height": 0.02
+    },
+    "style_tags": ["minimalist", "scandinavian"],
+    "color_tags": ["cream", "gray"],
+    "approx_price_usd": 240,
+    "placement_hints": ["under-bed-front", "center-room", "low-clearance"]
+  },
+  {
+    "id": "large-jute-area-rug",
+    "name": "Large Jute Area Rug",
+    "category": "textile",
+    "dimensions_m": {
+      "width": 2.44,
+      "depth": 3.05,
+      "height": 0.015
+    },
+    "style_tags": ["bohemian", "natural"],
+    "color_tags": ["natural-fiber", "tan"],
+    "approx_price_usd": 360,
+    "placement_hints": ["under-bed", "center-room", "low-clearance"]
+  },
+  {
+    "id": "open-bookshelf",
+    "name": "Open Bookshelf",
+    "category": "storage",
+    "dimensions_m": {
+      "width": 0.8,
+      "depth": 0.32,
+      "height": 1.8
+    },
+    "style_tags": ["industrial", "modern"],
+    "color_tags": ["matte-black", "natural-oak"],
+    "approx_price_usd": 230,
+    "placement_hints": ["against-wall", "anchor-to-wall", "needs-clearance-front"]
+  },
+  {
+    "id": "full-length-arched-mirror",
+    "name": "Full-Length Arched Mirror",
+    "category": "decor",
+    "dimensions_m": {
+      "width": 0.65,
+      "depth": 0.04,
+      "height": 1.7
+    },
+    "style_tags": ["modern", "transitional"],
+    "color_tags": ["brass", "matte-black"],
+    "approx_price_usd": 180,
+    "placement_hints": ["against-wall", "near-closet", "avoid-direct-glare"]
+  }
+]
