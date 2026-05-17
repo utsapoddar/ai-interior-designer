@@ -1,9 +1,11 @@
 import { Component, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useLoader } from '@react-three/fiber';
 import { Edges, OrbitControls, Text } from '@react-three/drei';
-import { Box3, BoxGeometry, DoubleSide, EdgesGeometry, Mesh, MeshStandardMaterial, MOUSE, TOUCH, type Group } from 'three';
+import { Box3, BoxGeometry, DoubleSide, EdgesGeometry, Mesh, MeshStandardMaterial, MOUSE, TOUCH, Vector3, type Group } from 'three';
+import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { USDZLoader } from 'three/examples/jsm/loaders/USDZLoader.js';
 import { getPlan, getScanMesh, type ExclusionZone, type MeshResponse, type PlanResponse, type PlacementItem } from '../lib/api';
+import { selectFurnitureAssetUrl, type FurnitureAsset } from './furniture_assets';
 
 function BboxRoomFallback({ dimensions }: { dimensions: MeshResponse['dimensions_m'] }) {
   const edges = useMemo(() => new EdgesGeometry(new BoxGeometry(dimensions.width, dimensions.height, dimensions.depth)), [dimensions.width, dimensions.height, dimensions.depth]);
@@ -136,7 +138,7 @@ function ScannedRoom({ scanId, dimensions }: { scanId: string; dimensions: MeshR
   );
 }
 
-function FurnitureProxy({ item }: { item: PlacementItem }) {
+function BoxProxy({ item }: { item: PlacementItem }) {
   const rotationY = (item.rotation_degrees * Math.PI) / 180;
   const color = item.category === 'bed' ? '#b9855a' : item.category === 'storage' ? '#7e9a8b' : '#8d8fb8';
 
@@ -151,6 +153,147 @@ function FurnitureProxy({ item }: { item: PlacementItem }) {
         {item.catalog_id}
       </Text>
     </group>
+  );
+}
+
+class FurnitureErrorBoundary extends Component<
+  { fallback: ReactNode; children: ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError(_: unknown) {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.warn('Falling back to box proxy because GLB furniture failed to load', error);
+  }
+
+  render() {
+    if (this.state.failed) return this.props.fallback;
+    return this.props.children;
+  }
+}
+
+function detectBackYaw(scene: Group): number {
+  const box = new Box3().setFromObject(scene);
+  if (box.isEmpty()) return 0;
+  const center = new Vector3();
+  box.getCenter(center);
+  const midY = (box.min.y + box.max.y) / 2;
+
+  let sumX = 0;
+  let sumZ = 0;
+  let count = 0;
+  scene.traverse((child) => {
+    if (!(child instanceof Mesh) || !child.geometry?.attributes?.position) return;
+    const pos = child.geometry.attributes.position;
+    child.updateMatrixWorld(true);
+    const v = new Vector3();
+    for (let i = 0; i < pos.count; i += 1) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(child.matrixWorld);
+      if (v.y > midY) {
+        sumX += v.x - center.x;
+        sumZ += v.z - center.z;
+        count += 1;
+      }
+    }
+  });
+  if (count === 0) return 0;
+  const backX = sumX / count;
+  const backZ = sumZ / count;
+  // Require meaningful asymmetry. Desks/tables/dressers have nearly-centered
+  // upper-half centroids; rotating them by mesh noise breaks "long side to wall."
+  const size = new Vector3();
+  box.getSize(size);
+  const asymmetry = Math.hypot(backX, backZ);
+  const threshold = 0.12 * Math.max(size.x, size.z);
+  if (asymmetry < threshold) return 0;
+  const backAngle = Math.atan2(backX, backZ);
+  // After we rotate the model by yaw=-(backAngle + Math.PI), back lands on -Z.
+  let yaw = -(backAngle + Math.PI);
+  while (yaw > Math.PI) yaw -= 2 * Math.PI;
+  while (yaw < -Math.PI) yaw += 2 * Math.PI;
+  // Snap to nearest 90° — furniture is axis-aligned; avoids jitter from noisy meshes.
+  return Math.round(yaw / (Math.PI / 2)) * (Math.PI / 2);
+}
+
+const autoYawCache = new Map<string, number>();
+
+function FurnitureModel({ item, asset }: { item: PlacementItem; asset: FurnitureAsset }) {
+  const gltf = useLoader(GLTFLoader, asset.url) as GLTF;
+  const dimensions = item.dimensions_m ?? item.dimensions;
+
+  const autoYaw = useMemo(() => {
+    const cached = autoYawCache.get(asset.url);
+    if (cached !== undefined) return cached;
+    const yaw = detectBackYaw(gltf.scene);
+    autoYawCache.set(asset.url, yaw);
+    return yaw;
+  }, [asset.url, gltf.scene]);
+
+  const rotationY = (item.rotation_degrees * Math.PI) / 180 + autoYaw;
+
+  const { model, scale } = useMemo(() => {
+    const model = gltf.scene.clone(true);
+    model.updateMatrixWorld(true);
+
+    const box = new Box3().setFromObject(model);
+    if (box.isEmpty()) {
+      return { model, scale: 1 };
+    }
+
+    const naturalSize = new Vector3();
+    const naturalCenter = new Vector3();
+    box.getSize(naturalSize);
+    box.getCenter(naturalCenter);
+
+    const wRatio = dimensions.width / Math.max(naturalSize.x, 0.001);
+    const hRatio = dimensions.height / Math.max(naturalSize.y, 0.001);
+    const dRatio = dimensions.depth / Math.max(naturalSize.z, 0.001);
+    const uniform = Math.cbrt(wRatio * hRatio * dRatio);
+    const scale: [number, number, number] = [uniform, uniform, uniform];
+    model.position.set(-naturalCenter.x, -box.min.y, -naturalCenter.z);
+
+    return { model, scale };
+  }, [dimensions.depth, dimensions.height, dimensions.width, gltf.scene]);
+
+  return (
+    <group position={[item.position.x, item.position.y, item.position.z]} rotation={[0, rotationY, 0]} scale={scale}>
+      <primitive object={model} />
+    </group>
+  );
+}
+
+const USE_GLB_FURNITURE = import.meta.env.VITE_USE_GLB_FURNITURE === 'true';
+
+function Furniture({ item }: { item: PlacementItem }) {
+  const [asset, setAsset] = useState<FurnitureAsset | null>(null);
+
+  useEffect(() => {
+    if (!USE_GLB_FURNITURE) return;
+    let cancelled = false;
+    setAsset(null);
+    selectFurnitureAssetUrl(item).then((nextAsset) => {
+      if (!cancelled) setAsset(nextAsset);
+    }).catch(() => {
+      if (!cancelled) setAsset(null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [item]);
+
+  if (!USE_GLB_FURNITURE || !asset) return <BoxProxy item={item} />;
+
+  const fallback = <BoxProxy item={item} />;
+  return (
+    <FurnitureErrorBoundary fallback={fallback}>
+      <Suspense fallback={fallback}>
+        <FurnitureModel item={item} asset={asset} />
+      </Suspense>
+    </FurnitureErrorBoundary>
   );
 }
 
@@ -205,7 +348,7 @@ export default function RoomPreviewScene({ planId }: { planId: string }) {
         <gridHelper args={[Math.max(dimensions.width, dimensions.depth) + 1, 10, '#9f9384', '#ddd4c8']} position={[dimensions.width / 2, 0.003, dimensions.depth / 2]} />
         <ScannedRoom scanId={plan?.scan_id ?? ''} dimensions={dimensions} />
         {plan?.exclusion_zones.map((zone) => <ExclusionZoneMesh key={`${zone.kind}-${zone.feature_id}-${zone.wall}`} zone={zone} />)}
-        {plan?.items.map((item) => <FurnitureProxy key={item.catalog_id} item={item} />)}
+        {plan?.items.map((item) => <Furniture key={item.catalog_id} item={item} />)}
         <OrbitControls
           makeDefault
           enableDamping

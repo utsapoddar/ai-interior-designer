@@ -45,7 +45,7 @@ export default function PreviewPage() {
   return (
     <section className="panel preview-panel">
       <p className="eyebrow">Step 3 · plan {planId || 'missing'}</p>
-      <h1>Box-proxy preview</h1>
+      <h1>3D layout preview</h1>
       <div className="preview-layout">
         <RoomCarousel planId={planId} />
         <aside className="preview-sidebar">

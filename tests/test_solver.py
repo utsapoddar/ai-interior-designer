@@ -1,4 +1,4 @@
-from solver.layout import place_furniture
+from solver.layout import place_furniture, validate_and_repair
 
 
 def _footprint(item: dict) -> tuple[float, float, float, float]:
@@ -13,6 +13,21 @@ def _footprint(item: dict) -> tuple[float, float, float, float]:
 
 def _overlaps(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> bool:
     return a[0] < b[1] and a[1] > b[0] and a[2] < b[3] and a[3] > b[2]
+
+
+def _mesh(width: float = 5.0, depth: float = 4.0) -> dict:
+    return {
+        "up_axis": "Y",
+        "dimensions_m": {"width": width, "depth": depth, "height": 2.5},
+        "bounding_box_m": {"min": [0, 0, 0], "max": [width, 2.5, depth]},
+        "features": {"walls": [], "doors": [], "windows": []},
+    }
+
+
+def _wall(item: dict, width: float = 5.0, depth: float = 4.0) -> str:
+    x = item["position"]["x"]
+    z = item["position"]["z"]
+    return min({"south": z, "north": depth - z, "west": x, "east": width - x}, key=lambda key: {"south": z, "north": depth - z, "west": x, "east": width - x}[key])
 
 
 def test_places_bed_nightstands_and_dresser_without_overlap() -> None:
@@ -111,3 +126,60 @@ def test_place_furniture_used_when_llm_proposes_nothing(monkeypatch) -> None:
     catalog = [{"id": "bed", "catalog_id": "bed", "category": "bed", "dimensions_m": {"width": 1.6, "depth": 2.0, "height": 0.8}}]
 
     assert plans.place_furniture(parsed_mesh, catalog)[0]["catalog_id"] == "bed"
+
+
+def test_desk_chair_pairs_with_desk() -> None:
+    proposed = [
+        {
+            "id": "desk",
+            "name": "Writing Desk",
+            "category": "surface",
+            "dimensions_m": {"width": 1.2, "depth": 0.6, "height": 0.75},
+            "wall_preference": "east",
+        },
+        {
+            "id": "chair",
+            "name": "Desk Chair",
+            "category": "seating",
+            "dimensions_m": {"width": 0.55, "depth": 0.55, "height": 0.9},
+            "wall_preference": "any",
+        },
+    ]
+
+    placed, _ = validate_and_repair(_mesh(), proposed)
+
+    desk = next(item for item in placed if item["catalog_id"] == "desk")
+    chair = next(item for item in placed if item["catalog_id"] == "chair")
+    assert _wall(chair) == "east"
+    assert (chair["rotation_degrees"] - desk["rotation_degrees"]) % 360 == 180
+    distance = ((chair["position"]["x"] - desk["position"]["x"]) ** 2 + (chair["position"]["z"] - desk["position"]["z"]) ** 2) ** 0.5
+    assert distance < 1.5
+
+
+def test_nightstand_pairs_with_bed() -> None:
+    proposed = [
+        {
+            "id": "bed",
+            "name": "Platform Bed",
+            "category": "bed",
+            "dimensions_m": {"width": 1.6, "depth": 2.0, "height": 0.7},
+            "wall_preference": "south",
+        },
+        {
+            "id": "nightstand",
+            "name": "Bedside Nightstand",
+            "category": "storage",
+            "dimensions_m": {"width": 0.45, "depth": 0.45, "height": 0.55},
+            "wall_preference": "any",
+        },
+    ]
+
+    placed, _ = validate_and_repair(_mesh(), proposed)
+
+    bed = next(item for item in placed if item["catalog_id"] == "bed")
+    nightstand = next(item for item in placed if item["catalog_id"] == "nightstand")
+    bed_fp = _footprint(bed)
+    nightstand_fp = _footprint(nightstand)
+    edge_distance = min(abs(nightstand_fp[1] - bed_fp[0]), abs(nightstand_fp[0] - bed_fp[1]))
+    assert _wall(nightstand) == "south"
+    assert edge_distance < 1.0

@@ -354,6 +354,163 @@ def _anchor_to_wall(parsed_mesh: dict, item: dict, occupied: dict) -> tuple[floa
     return round(x, 3), round(z, 3), rotation
 
 
+def _name_contains(item: dict, phrases: tuple[str, ...]) -> bool:
+    name = str(item.get("name", "")).lower()
+    return any(phrase in name for phrase in phrases)
+
+
+def _item_position(item: dict) -> tuple[float, float]:
+    pos = item.get("position") or {}
+    return float(pos.get("x", 0.0)), float(pos.get("z", 0.0))
+
+
+def _set_item_pose(item: dict, x: float, z: float, rotation: int, wall: str) -> dict:
+    moved = dict(item)
+    moved["position"] = {"x": round(x, 3), "y": float(item.get("position", {}).get("y", 0.0)), "z": round(z, 3)}
+    moved["rotation_degrees"] = rotation % 360
+    moved["wall_preference"] = wall
+    return moved
+
+
+def _wall_center_for_item(parsed_mesh: dict, item: dict, wall: str, rotation: int, along: float) -> tuple[float, float]:
+    dims = parsed_mesh["dimensions_m"]
+    room_width = float(dims["width"])
+    room_depth = float(dims["depth"])
+    width, depth = rotated_size(item, rotation)
+    if wall == "south":
+        return along, depth / 2
+    if wall == "north":
+        return along, room_depth - depth / 2
+    if wall == "west":
+        return width / 2, along
+    return room_width - width / 2, along
+
+
+def _desk_chair_position(anchor: dict, chair: dict, wall: str) -> tuple[float, float, int]:
+    ax, az = _item_position(anchor)
+    rotation = (int(float(anchor.get("rotation_degrees", 0))) + 180) % 360
+    chair_width, chair_depth = rotated_size(chair, rotation)
+    anchor_fp = footprint(anchor, ax, az, int(float(anchor.get("rotation_degrees", 0))))
+    gap = 0.15
+    if wall == "south":
+        return ax, anchor_fp[3] + gap + chair_depth / 2, rotation
+    if wall == "north":
+        return ax, anchor_fp[2] - gap - chair_depth / 2, rotation
+    if wall == "west":
+        return anchor_fp[1] + gap + chair_width / 2, az, rotation
+    return anchor_fp[0] - gap - chair_width / 2, az, rotation
+
+
+def _nightstand_position(parsed_mesh: dict, bed: dict, nightstand: dict, wall: str, side: int) -> tuple[float, float, int]:
+    dims = parsed_mesh["dimensions_m"]
+    room_width = float(dims["width"])
+    room_depth = float(dims["depth"])
+    bx, bz = _item_position(bed)
+    rotation = int(float(bed.get("rotation_degrees", 0))) % 360
+    width, depth = rotated_size(nightstand, rotation)
+    bed_fp = footprint(bed, bx, bz, rotation)
+    gap = 0.05
+    if wall in {"south", "north"}:
+        x = bed_fp[0] - gap - width / 2 if side < 0 else bed_fp[1] + gap + width / 2
+        z = depth / 2 if wall == "south" else room_depth - depth / 2
+        return x, z, rotation
+    x = width / 2 if wall == "west" else room_width - width / 2
+    z = bed_fp[2] - gap - depth / 2 if side < 0 else bed_fp[3] + gap + depth / 2
+    return x, z, rotation
+
+
+def _preferred_nightstand_sides(parsed_mesh: dict, bed: dict, wall: str) -> list[int]:
+    dims = parsed_mesh["dimensions_m"]
+    bx, bz = _item_position(bed)
+    if wall in {"south", "north"}:
+        preferred = 1 if bx <= float(dims["width"]) / 2 else -1
+    else:
+        preferred = 1 if bz <= float(dims["depth"]) / 2 else -1
+    return [preferred, -preferred]
+
+
+def _fallback_pair_position(parsed_mesh: dict, item: dict, wall: str, rotation: int) -> tuple[float, float, int]:
+    dims = parsed_mesh["dimensions_m"]
+    room_width = float(dims["width"])
+    room_depth = float(dims["depth"])
+    old_x, old_z = _item_position(item)
+    along = old_x if wall in {"south", "north"} else old_z
+    x, z = _wall_center_for_item(parsed_mesh, item, wall, rotation, along)
+    fp = footprint(item, x, z, rotation)
+    dx, dz = _room_adjustment(fp, room_width, room_depth)
+    return x + dx, z + dz, rotation
+
+
+def _apply_pair_adjustments(parsed_mesh: dict, anchored: list[dict], occupied: dict) -> list[dict]:
+    dims = parsed_mesh["dimensions_m"]
+    room_width = float(dims["width"])
+    room_depth = float(dims["depth"])
+    zone_fps = [_zone_fp(zone) for zone in build_exclusion_zones(parsed_mesh)]
+    footprints = occupied.setdefault("footprints", [])
+
+    def valid(item: dict, x: float, z: float, rotation: int, ignore_index: int) -> bool:
+        fp = footprint(item, x, z, rotation)
+        if not in_room(fp, room_width, room_depth):
+            return False
+        if any(overlaps(fp, zone_fp) for zone_fp in zone_fps):
+            return False
+        return not any(index != ignore_index and overlaps(fp, existing) for index, existing in enumerate(footprints))
+
+    def move(index: int, x: float, z: float, rotation: int, wall: str) -> None:
+        anchored[index] = _set_item_pose(anchored[index], x, z, rotation, wall)
+        footprints[index] = footprint(anchored[index], x, z, rotation)
+
+    desks = [
+        item for item in anchored
+        if item.get("category") == "surface" and _name_contains(item, ("desk",))
+    ]
+    for index, item in enumerate(anchored):
+        if item.get("category") != "seating" or not desks:
+            continue
+        explicit = _name_contains(item, ("desk chair", "office chair", "task chair"))
+        # Fallback: if there's exactly one desk and this is a small chair-sized seating
+        # item, treat it as the desk's chair regardless of name (e.g. "Ergo Chair").
+        dims = item.get("dimensions_m") or item.get("dimensions") or {}
+        small = max(float(dims.get("width", 0)), float(dims.get("depth", 0))) <= 0.9
+        implicit = small and len(desks) == 1
+        if not explicit and not implicit:
+            continue
+        anchor = desks[0]
+        ax, az = _item_position(anchor)
+        wall = _nearest_wall(ax, az, room_width, room_depth)
+        x, z, rotation = _desk_chair_position(anchor, item, wall)
+        if not valid(item, x, z, rotation, index):
+            x, z, rotation = _fallback_pair_position(parsed_mesh, item, wall, rotation)
+        move(index, x, z, rotation, wall)
+
+    beds = [item for item in anchored if item.get("category") == "bed"]
+    if not beds:
+        return anchored
+    bed = beds[0]
+    bx, bz = _item_position(bed)
+    bed_wall = _nearest_wall(bx, bz, room_width, room_depth)
+    sides = _preferred_nightstand_sides(parsed_mesh, bed, bed_wall)
+    nightstand_count = 0
+    for index, item in enumerate(anchored):
+        if item.get("category") != "storage" or not _name_contains(item, ("nightstand", "bedside", "night stand")):
+            continue
+        side_order = sides if nightstand_count == 0 else [sides[1], sides[0]]
+        placed = False
+        last_candidate: tuple[float, float, int] | None = None
+        for side in side_order:
+            x, z, rotation = _nightstand_position(parsed_mesh, bed, item, bed_wall, side)
+            last_candidate = (x, z, rotation)
+            if valid(item, x, z, rotation, index):
+                move(index, x, z, rotation, bed_wall)
+                placed = True
+                break
+        if not placed and last_candidate:
+            x, z, rotation = _fallback_pair_position(parsed_mesh, item, bed_wall, last_candidate[2])
+            move(index, x, z, rotation, bed_wall)
+        nightstand_count += 1
+    return anchored
+
+
 def _anchor_items(parsed_mesh: dict, items: list[dict]) -> list[dict]:
     occupied = _new_anchor_state()
     anchored: list[dict] = []
@@ -368,7 +525,7 @@ def _anchor_items(parsed_mesh: dict, items: list[dict]) -> list[dict]:
         anchored_item["position"] = {"x": x, "y": 0.0, "z": z}
         anchored_item["rotation_degrees"] = rotation
         anchored.append(anchored_item)
-    return anchored
+    return _apply_pair_adjustments(parsed_mesh, anchored, occupied)
 
 
 def validate_and_repair(parsed_mesh: dict, proposed_items: list[dict]) -> tuple[list[dict], list[dict]]:

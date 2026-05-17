@@ -64,6 +64,8 @@ def test_parse_usdz_extracts_bbox_dimensions_from_raw_mesh(tmp_path: Path) -> No
     assert parsed["ceiling_z_or_y_m"] == pytest.approx(2.5)
     assert parsed["triangle_count"] == 12
     assert parsed["has_labeled_primitives"] is False
+    assert parsed["outline_m"] == []
+    assert parsed["existing_furniture"] == []
     assert parsed["source_file_bytes"] == usdz_path.stat().st_size
 
 
@@ -75,6 +77,8 @@ def test_parses_parametric_features() -> None:
     assert len(parsed["features"]["walls"]) == 4
     assert len(parsed["features"]["doors"]) == 1
     assert len(parsed["features"]["windows"]) == 1
+    assert parsed["outline_m"] == []
+    assert parsed["existing_furniture"] == []
 
     for feature in parsed["features"]["walls"] + parsed["features"]["doors"] + parsed["features"]["windows"]:
         assert set(feature) == {"feature_id", "kind", "center_m", "extent_m", "rotation_y_degrees"}
@@ -94,3 +98,5 @@ def test_mesh_only_has_empty_features() -> None:
     assert parsed["parametric"] is False
     assert parsed["has_labeled_primitives"] is False
     assert parsed["features"]["doors"] == []
+    assert parsed["outline_m"] == []
+    assert parsed["existing_furniture"] == []

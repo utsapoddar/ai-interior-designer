@@ -19,7 +19,7 @@ from solver.layout import build_exclusion_zones, place_furniture, validate_and_r
 
 PARSED_MESH_DIR = Path("ingest/parsed-mesh")
 PLANS_DIR = Path("chat/plans")
-MAX_REFERENCE_BYTES = 10 * 1024 * 1024
+MAX_REFERENCE_BYTES = 40 * 1024 * 1024
 ACCEPTED_REFERENCE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 
@@ -400,7 +400,7 @@ async def _read_reference_images(references: list[UploadFile]) -> list[bytes]:
         raw = await upload.read()
         total_bytes += len(raw)
         if total_bytes > MAX_REFERENCE_BYTES:
-            raise HTTPException(status_code=413, detail="Reference images exceed 10MB combined")
+            raise HTTPException(status_code=413, detail="Reference images exceed 40MB combined")
         processed.append(_resize_and_encode_jpeg(raw))
     return processed
 
