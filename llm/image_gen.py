@@ -50,8 +50,8 @@ async def generate_room_images(plan: dict, parsed_mesh: dict, count: int = 3) ->
     async with httpx.AsyncClient(timeout=120) as client:
         for index, prompt in enumerate(prompts[:count]):
             try:
-                # Probed 2026-05-13: FLUX.1-schnell accepts this body and returns JSON
-                # with a top-level `artifacts` list containing base64 image payloads.
+                # Probed 2026-05-21: FLUX.1-schnell accepts this body and returns JSON
+                # shaped like {"artifacts": [{"base64": "...", "finishReason": "...", "seed": ...}]}.
                 body = {
                     "prompt": prompt,
                     "width": 1024,
