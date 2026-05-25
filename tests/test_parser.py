@@ -89,7 +89,7 @@ def test_parses_parametric_features() -> None:
 
 
 def test_mesh_only_has_empty_features() -> None:
-    sample = Path("ingest/usdz/sample_bedroom.usdz")
+    sample = Path("tests/fixtures/sample_bedroom.usdz")
     if not sample.exists() or sample.stat().st_size == 0:
         pytest.skip("sample mesh USDZ is not accessible in this sandbox")
 
