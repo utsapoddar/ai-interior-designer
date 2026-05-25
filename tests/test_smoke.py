@@ -8,7 +8,7 @@ from chat.app import app
 
 
 client = TestClient(app)
-SAMPLE_USDZ = Path("ingest/usdz/sample_bedroom.usdz")
+SAMPLE_USDZ = Path("tests/fixtures/sample_bedroom.usdz")
 
 
 def test_health() -> None:
