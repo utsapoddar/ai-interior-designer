@@ -4,6 +4,12 @@
 
 LiDAR Room Designer is a personal prototype for turning an iPhone RoomPlan scan into a furniture plan for the user's real room, not a generated room that merely resembles it. The product solves the geometry-fidelity gap in common AI interior tools: instead of restyling a flat photo and hallucinating walls, windows, doors, ceiling height, and furniture scale, it treats the LiDAR-derived room mesh as the source of truth and uses a vision-capable LLM plus a placement reasoner to choose furniture and layout against known geometry.
 
+## Architecture and walkthrough
+
+[![LiDAR Room Designer architecture diagram](docs/media/architecture.png)](docs/media/architecture.png)
+
+**[Watch the one-minute project explainer →](docs/media/explainer.mp4)**
+
 ## Locked Decisions
 
 1. **Platform split**: iOS handles RoomPlan capture only; the web app handles upload, chat, preview, and everything else. Rationale: keep the native work limited to the one capability the web cannot provide.
