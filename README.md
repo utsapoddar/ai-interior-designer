@@ -8,7 +8,9 @@ LiDAR Room Designer is a personal prototype for turning an iPhone RoomPlan scan 
 
 [![LiDAR Room Designer architecture diagram](docs/media/architecture.png)](docs/media/architecture.png)
 
-**[Watch the one-minute project explainer →](docs/media/explainer.mp4)**
+### Video walkthrough
+
+https://github.com/user-attachments/assets/dc7b6a5e-4f91-46c9-bb91-1b966434ee27
 
 ## Locked Decisions
 
